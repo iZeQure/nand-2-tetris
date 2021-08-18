@@ -12,15 +12,15 @@
 // Put your code here.
 
 // Setup
-@5
-D = A
-@R0
-M = D
+// @0
+// D = A
+// @R0
+// M = D
 
-@12
-D = A
-@R1
-M = D
+// @0
+// D = A
+// @R1
+// M = D
 
 @0
 D = A
@@ -28,7 +28,7 @@ D = A
 M = D
 
 // Loop
-@i
+@index // Variable to hold the counter of the multiplier.
 M = 0
 
 // Logic
@@ -44,9 +44,9 @@ M = 0
     @loopEnd
     D ; JLE // Jump if @R1 <= 0
 
-    @i
+    @index
     D = M
-    @0
+    @R0
     D = D - M
     @loopEnd
     D ; JGE // Jump if i > than @R0
@@ -59,7 +59,7 @@ M = 0
     @R2
     M = D + M
 
-    @i
+    @index
     M = M + 1 // i++
 
     // @R2
