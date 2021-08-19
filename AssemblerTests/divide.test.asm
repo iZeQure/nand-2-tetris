@@ -37,7 +37,11 @@ M = 0
     @R1 // Get the lowest value in the set.
     D = M
     @R0
-    M = M - D // Substract the lowest value with highest value.
+    D = M - D // Substract the lowest value with highest value.
+    @END
+    D ; JLT
+    @R0
+    M = D
 
     @index
     M = M + 1
