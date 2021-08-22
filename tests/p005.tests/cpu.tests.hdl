@@ -40,13 +40,30 @@ CHIP CPU {
 
     PARTS:
     // Put your code here:
-                                                                // Decode the instruction into bits.
-    Not(in=instruction[15], out=aInstruction);                  // Invert last instruction bit.
+    Mux16(a=instruction, b=outALU, sel=instruction[15], out=aInst);
+
+    // Decode the instruction into bits.
+    Not(in=instruction[15], out=aInstruction);                  // A instruction?.
     And(a=instruction[14], b=instruction[13], out=allOnes);     // Check for all ones [1 1].
     And(a=allOnes, b=instruction[15], out=cInstruction);        // Set C Instruction if instruction is [1 1 1].
     And(a=cInstruction, b=instruction[12], out=sourceM);        // srcM.
 
-    // ALU Decode.
+    /* Destination Register Decode. */
+    And(a=cInstruction, b=instruction[5], out=destA);           // destination A Register.
+    And(a=cInstruction, b=instruction[4], out=destD);           // destination D Register.
+
+    /* Define the instruction, load into A register, output A register, set memory address and output to PC in. */
+    Or(a=aInstruction, b=destA, out=loadARegister);
+    Register(in=aInst, load=loadARegister, out=outARegister, out[0..14]=addressM, out=pcIn);
+
+    /* Do we wanna put A into the Memory? */
+    And(a=cInstruction, b=instruction[3], out=writeM);          // destination M Register, write to memory.
+    Mux16(a=outARegister, b=inM, sel=sourceM, out=outAMemory);
+
+    /* Output to D Register. */
+    Register(in=outALU, load=destD, out=outDRegister);
+
+    /* ALU Decode. */
     And(a=cInstruction, b=instruction[11], out=aluZX);          // zx input on ALU.
     And(a=cInstruction, b=instruction[10], out=aluNX);          // nx input on ALU.
     And(a=cInstruction, b=instruction[9], out=aluZY);           // zy input on ALU.
@@ -54,28 +71,69 @@ CHIP CPU {
     And(a=cInstruction, b=instruction[7], out=aluF);            // f input on ALU.
     And(a=cInstruction, b=instruction[6], out=aluNO);           // no input on ALU.
 
-    // Destination Register Decode.
-    And(a=cInstruction, b=instruction[5], out=destA);           // destination A Register.
-    And(a=cInstruction, b=instruction[4], out=destD);           // destination D Register.
-    And(a=cInstruction, b=instruction[3], out=writeM);          // destination M Register, write to memory.
+    /* Send data to ALU. */
+    ALU(x=outDRegister, y=outAMemory, 
+    zx=aluZX, nx=aluNX, zy=aluZY, ny=aluNY, f=aluF, no=aluNO, 
+    out=outALU, out=outM,                                       // If out == 0, then 1.
+    zr=zero, ng=negative);                                      // If out < 0, then 1.
 
-    // JUMP Decode.
+    Or(a=negative, b=zero, out=notPositiveOutput);
+    Not(in=notPositiveOutput, out=positive);
+
+    /* JUMP Decode. */
     And(a=cInstruction, b=instruction[2], out=jmpLT);           // Jump if Less Than.
     And(a=cInstruction, b=instruction[1], out=jmpEQ);           // Jump if Equal.
     And(a=cInstruction, b=instruction[0], out=jmpGT);           // Jump if Greater Than.
 
-    ALU(x=inM, y=instruction, zx=aluZX, nx=aluNX, zy=aluZY, ny=aluNY, f=aluF, no=aluNO, out=outM, zr=zr, ng=ng);
+    And(a=jmpLT, b=negative, out=jlt);                          // If JLT == -1, Jump less than.
+    And(a=jmpEQ, b=zero, out=jeq);                              // If JEQ == 0, Jump equal to.
+    And(a=jmpGT, b=positive, out=jgt);                          // If JGT > 0, Jump greater than.
+
+    Or(a=jlt, b=jeq, out=jle);                                  // If less than or equal, out jump less equal.
+    Or(a=jle, b=jgt, out=jmp);                                  // If equal or greater than, out jump.
+
+    PC(in=pcIn, load=jmp, inc=true, reset=reset, out[0..14]=pc);
+
+    // Mux16(a=outALU, b=instruction, sel=aInstruction, out=i);
+
+    // // Or(a=aInstruction, b=destA, out=intoARegister);
+    // Register(in=i, load=destA, out=outARegister, out[0..14]=addressM);
+
+    // And(a=aInstruction, b=sourceM, out=outAorM);
+    // Mux16(a=outARegister, b=inM, sel=outAorM, out=AM);
+
+    // ALU(x=outDRegister, y=AM,
+    //     zx=aluZX, nx=aluNX, zy=aluZY, ny=aluNY, f=aluF, no=aluNO, 
+    //     out=outM, out=outALU,
+    //     zr=zero, ng=negative);
+
+    // // And(a=aInstruction, b=destD, out=intoDRegister);
+    // Register(in=outALU, load=destD, out=outDRegister);                  // D Register.
+    
+    // Or(a=negative, b=zero, out=notPositive);
+    // Not(in=notPositive, out=positive);
+
+    // And(a=jmpLT, b=negative, out=jlt);
+    // And(a=jmpEQ, b=zero, out=jeq);
+    // And(a=jmpGT, b=positive, out=jgt);
+
+    // Or(a=jlt, b=jeq, out=jmp01);
+    // Or(a=jmp01, b=jgt, out=jmp012);
+    // And(a=jmp012, b=cInstruction, out=jmp);
+
+    // PC(in=outARegister, load=jmp, inc=true, reset=reset, out[0..14]=pc);
+
     
     //MKC 
     // PC with jump test
-    Or (a=zr, b=ng, out=zrng);
-    Not (in=zrng, out=aluPos);
-    And (a=ng, b=jmpLT, out=jlt);
-    And (a=zr, b=jmpEQ, out=jeq);
-    And (a=aluPos, b=jmpGT, out=jgt);
-    Or (a=jlt, b=jeq, out=jle);
-    Or (a=jle, b=jgt, out=jmp);
-    PC (in=destA, reset=reset, inc=true, load=jmp, out[0..14]=pc);
+    // Or (a=zr, b=ng, out=zrng);
+    // Not (in=zrng, out=aluPos);
+    // And (a=ng, b=jmpLT, out=jlt);
+    // And (a=zr, b=jmpEQ, out=jeq);
+    // And (a=aluPos, b=jmpGT, out=jgt);
+    // Or (a=jlt, b=jeq, out=jle);
+    // Or (a=jle, b=jgt, out=jmp);
+    // PC (in=destA, reset=reset, inc=true, load=jmp, out[0..14]=pc);
     
     // Or(a=ng, b=zr, out=oneOrZeroEqualOutput);
     // Not(in=oneOrZeroEqualOutput, out=zeroOut);
