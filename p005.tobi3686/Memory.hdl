@@ -28,12 +28,20 @@ CHIP Memory {
 
     PARTS:
     // Put your code here:
-    DMux4Way(in=load, sel=address[13..14], a=dMuxOutA, b=dMuxOutB, c=dMuxOutC, d=dMuxOutD);
+    DMux4Way(in=load, sel=address[13..14], a=ramOne, b=ramTwo, c=loadScreen);
+    Or(a=ramOne, b=ramTwo, out=ram);
 
-    Or(a=dMuxOutA, b=dMuxOutB, out=orOutAB);
-
-    RAM16K(in=in, load=orOutAB, address=address[0..13], out=ram16KOutA);
-    Screen(in=in, load=dMuxOutC, address=address[0..12], out=screenOut);
+    RAM16K(in=in, load=ram, address=address[0..13], out=ramOut);
+    Screen(in=in, load=loadScreen, address=address[0..12], out=screenOut);
     Keyboard(out=keyboardOut);
-    Mux4Way16(a=ram16KOutA, b=ram16KOutA, c=screenOut, d=keyboardOut, sel=address[13..14], out=out);
+
+    Mux4Way16(a=ramOut, b=ramOut, c=screenOut, d=keyboardOut, sel=address[13..14], out=out);
+    // DMux4Way(in=load, sel=address[13..14], a=dMuxOutA, b=dMuxOutB, c=dMuxOutC, d=dMuxOutD);
+
+    // Or(a=dMuxOutA, b=dMuxOutB, out=orOutAB);
+
+    // RAM16K(in=in, load=orOutAB, address=address[0..13], out=ram16KOutA);
+    // Screen(in=in, load=dMuxOutC, address=address[0..12], out=screenOut);
+    // Keyboard(out=keyboardOut);
+    // Mux4Way16(a=ram16KOutA, b=ram16KOutA, c=screenOut, d=keyboardOut, sel=address[13..14], out=out);
 }
