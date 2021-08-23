@@ -53,7 +53,7 @@ namespace Assembler.Handlers
 
                     return (false, Array.Empty<string>());
                 default:
-                    return (false, Array.Empty<string>());
+                    throw new Exception("Yo, that's some magic. We don't support that type of language.");
             }
         }
 
