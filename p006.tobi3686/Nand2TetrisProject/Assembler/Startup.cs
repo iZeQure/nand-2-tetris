@@ -3,9 +3,6 @@ using Assembler.Handlers;
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Assembler
 {
@@ -68,7 +65,7 @@ namespace Assembler
 
                 Console.WriteLine($"Done. Writing Output file.");
 
-                fileManager.WriteFile(@"C:\Users\iZeQure\Desktop\machine-code.txt", machineCode.ToArray());
+                fileManager.WriteFile(Helper.FILE_OUTPUT_PATH, machineCode.ToArray());
                 Console.WriteLine($"Successfully compiled binary output.");
             }
             catch (Exception ex)
@@ -83,5 +80,6 @@ namespace Assembler
     public static class Helper
     {
         public const string FILE_BASE_PATH = @"E:\Nand2Tetris\nand2tetris\projects\06\";
+        public const string FILE_OUTPUT_PATH = @"C:\Users\iZeQure\Desktop\machine-code.txt";
     }
 }
