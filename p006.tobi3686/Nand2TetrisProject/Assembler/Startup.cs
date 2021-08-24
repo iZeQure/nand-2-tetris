@@ -46,17 +46,17 @@ namespace Assembler
                     }
                 }
 
-                //Console.WriteLine("Loading symbols . . .");
-                ///* Loop through file to find unique symbols. */
-                //foreach (string symbol in hackFile)
-                //{
-                //    var containsSymbol = parser.ContainsSymbol(symbol);
+                Console.WriteLine("Loading symbols . . .");
+                /* Loop through file to find unique symbols. */
+                foreach (string symbol in hackFile)
+                {
+                    var containsSymbol = parser.ContainsSymbol(symbol);
 
-                //    if (!string.IsNullOrEmpty(containsSymbol))
-                //    {
-                //        parser.AddInstructionToSymbolTable(containsSymbol, "");
-                //    }
-                //}
+                    if (!string.IsNullOrEmpty(containsSymbol))
+                    {
+                        parser.AddInstructionToSymbolTable(containsSymbol, "");
+                    }
+                }
 
                 /* Loop through every line in the hack file. */
                 foreach (string line in hackFile)

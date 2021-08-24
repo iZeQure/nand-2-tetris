@@ -77,11 +77,6 @@ namespace Assembler.Handlers
             //return GetBinaryValue(0);
         }
 
-        private string GetBinaryValue(int value)
-        {
-            return Convert.ToString(value, 2).PadLeft(_bitSize, _paddingChar);
-        }
-
         public string ConvertDestInstruction(string data)
         {
             if (_symbolManager.DestInstructions.TryGetValue(data, out string value))
@@ -113,6 +108,11 @@ namespace Assembler.Handlers
             }
 
             return "000";
+        }
+
+        private string GetBinaryValue(int value)
+        {
+            return Convert.ToString(value, 2).PadLeft(_bitSize, _paddingChar);
         }
     }
 }

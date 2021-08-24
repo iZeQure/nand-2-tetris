@@ -39,6 +39,13 @@ namespace Assembler.Handlers
             {
                 var s = symbol.Split("@")[1];
 
+                var isNumber = int.TryParse(s, out int number);
+
+                if (isNumber)
+                {
+                    return "";
+                }
+
                 return s;
             }
 
