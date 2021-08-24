@@ -11,7 +11,7 @@ namespace Assembler
 {
     public class Startup
     {
-        public async Task RunAssembler()
+        public async Task RunAssemblerAsync()
         {
             Console.WriteLine($"Current Directory: {Helper.FILE_BASE_PATH}");
             Console.Write($"Specify File Location: ");
