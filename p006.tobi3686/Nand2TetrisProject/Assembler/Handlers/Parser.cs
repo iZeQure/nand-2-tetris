@@ -6,6 +6,45 @@ namespace Assembler.Handlers
     {
         private readonly Converter _converter = new();
 
+        public void AddInstructionToSymbolTable(string label, string value)
+        {
+            _converter.StoreInstruction(label, value);
+        }
+
+        /// <summary>
+        /// If Label is found in the data, return true and it's assigned value.
+        /// </summary>
+        /// <param name="data"></param>
+        /// <param name="instruction"></param>
+        /// <returns></returns>
+        public (bool, string) ContainsLabel(string data, string instruction)
+        {
+            var isLabel = ContainsInstruction(data, instruction);
+
+            if (isLabel)
+            {
+                var label = data.Split('(', ')');
+
+                return (isLabel, label[1]);
+            }
+
+            return (false, "");
+        }
+
+        public string ContainsSymbol(string symbol)
+        {
+            var isSymbol = ContainsInstruction(symbol, "@");
+
+            if (isSymbol)
+            {
+                var s = symbol.Split("@")[1];
+
+                return s;
+            }
+
+            return "";
+        }
+
         public (bool, string[]) GetInstructionSetValues(string data, string instruction)
         {
             switch (instruction)
@@ -14,10 +53,9 @@ namespace Assembler.Handlers
                     if (ContainsInstruction(data, instruction))
                     {
                         var splitData = data.Split(instruction)[1];
-                        var isParsed = int.TryParse(splitData, out int value);
-                        string binaryResult = _converter.ConvertAInstruction(value);
+                        string binaryResult = _converter.ConvertAInstruction(splitData);
 
-                        return (isParsed, new string[] { binaryResult });
+                        return (true, new string[] { binaryResult });
                     }
 
                     return (false, Array.Empty<string>());

@@ -6,13 +6,13 @@ namespace Assembler.Core
 {
     public class FileManager
     {
-        public string[] LoadFile(string path)
+        public List<string> LoadFile(string path)
         {
             var file = File.ReadAllLines(path);
 
-            file = TruncateFile(file, "//");
+            var truncatedFile = TruncateFile(file, "//");
 
-            return file;
+            return truncatedFile;
         }
 
         public void WriteFile(string path, string[] file)
@@ -20,7 +20,7 @@ namespace Assembler.Core
             File.WriteAllLines(path, file);
         }
 
-        private static string[] TruncateFile(string[] file, string delimiter)
+        private static List<string> TruncateFile(string[] file, string delimiter)
         {
             List<string> lines = new();
 
@@ -36,7 +36,7 @@ namespace Assembler.Core
                 lines.Add(line);
             }
 
-            return lines.ToArray();
+            return lines;
         }
     }
 }

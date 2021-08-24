@@ -3,6 +3,7 @@ using Assembler.Handlers;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 
 namespace Assembler
 {
@@ -26,14 +27,40 @@ namespace Assembler
 
             try
             {
-                string[] hackFile = fileManager.LoadFile(file);
+                List<string> hackFile = fileManager.LoadFile(file);
                 Console.WriteLine("File loaded! Generating machine code...");
 
                 List<string> machineCode = new();
                 Parser parser = new();
 
+                Console.WriteLine("Loading Labels . . .");
+                /* Loop through whole file to find all labels. */
+                for (int labelIndex = 0; labelIndex < hackFile.Count; labelIndex++)
+                {
+                    var result = parser.ContainsLabel(hackFile[labelIndex], "(");
+                    if (result.Item1 && !string.IsNullOrEmpty(result.Item2))
+                    {
+                        //Console.WriteLine($"@{result.Item2} - {labelIndex}");
+                        parser.AddInstructionToSymbolTable(result.Item2, $"{labelIndex}");
+                        hackFile.RemoveAt(labelIndex);
+                    }
+                }
+
+                //Console.WriteLine("Loading symbols . . .");
+                ///* Loop through file to find unique symbols. */
+                //foreach (string symbol in hackFile)
+                //{
+                //    var containsSymbol = parser.ContainsSymbol(symbol);
+
+                //    if (!string.IsNullOrEmpty(containsSymbol))
+                //    {
+                //        parser.AddInstructionToSymbolTable(containsSymbol, "");
+                //    }
+                //}
+
                 /* Loop through every line in the hack file. */
                 foreach (string line in hackFile)
+                //for (int i = 0; i < hackFile.Length; i++)
                 {
                     var aInstructions = parser.GetInstructionSetValues(line, "@");
 
@@ -79,7 +106,9 @@ namespace Assembler
 
     public static class Helper
     {
-        public const string FILE_BASE_PATH = @"E:\Nand2Tetris\nand2tetris\projects\06\";
-        public const string FILE_OUTPUT_PATH = @"C:\Users\iZeQure\Desktop\machine-code.txt";
+        public const string FILE_BASE_PATH = @"A:\Nand2Tetris\nand2tetris\projects\06\";
+        //public const string FILE_BASE_PATH = @"E:\Nand2Tetris\nand2tetris\projects\06\";
+        public const string FILE_OUTPUT_PATH = @"C:\Users\Tobias Rosenvinge\Desktop\machine-code.hack";
+        //public const string FILE_OUTPUT_PATH = @"C:\Users\iZeQure\Desktop\machine-code.txt";
     }
 }
