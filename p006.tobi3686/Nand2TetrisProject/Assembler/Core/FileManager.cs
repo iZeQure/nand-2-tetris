@@ -1,23 +1,24 @@
 ﻿using System.Collections.Generic;
 using System.IO;
 using System.Text.RegularExpressions;
+using System.Threading.Tasks;
 
 namespace Assembler.Core
 {
     public class FileManager
     {
-        public List<string> LoadFile(string path)
+        public async Task<List<string>> LoadFileAsync(string path)
         {
-            var file = File.ReadAllLines(path);
+            var file = await File.ReadAllLinesAsync(path);
 
             var truncatedFile = TruncateFile(file, "//");
 
             return truncatedFile;
         }
 
-        public void WriteFile(string path, string[] file)
+        public async Task WriteFileAsync(string path, string[] file)
         {
-            File.WriteAllLines(path, file);
+            await File.WriteAllLinesAsync(path, file);
         }
 
         private static List<string> TruncateFile(string[] file, string delimiter)

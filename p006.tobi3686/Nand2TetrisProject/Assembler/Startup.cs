@@ -2,14 +2,16 @@
 using Assembler.Handlers;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 
 namespace Assembler
 {
     public class Startup
     {
-        public void RunAssembler()
+        public async Task RunAssembler()
         {
             Console.WriteLine($"Current Directory: {Helper.FILE_BASE_PATH}");
             Console.Write($"Specify File Location: ");
@@ -25,9 +27,12 @@ namespace Assembler
             Console.WriteLine($"Loading file {file} . . .");
             FileManager fileManager = new();
 
+            Stopwatch sw = new();
+            sw.Start();
+
             try
             {
-                List<string> hackFile = fileManager.LoadFile(file);
+                List<string> hackFile = await fileManager.LoadFileAsync(file);
                 Console.WriteLine("File loaded! Generating machine code...");
 
                 List<string> machineCode = new();
@@ -91,9 +96,11 @@ namespace Assembler
                 }
 
                 Console.WriteLine($"Done. Writing Output file.");
+                await fileManager.WriteFileAsync(Helper.FILE_OUTPUT_PATH, machineCode.ToArray());
 
-                fileManager.WriteFile(Helper.FILE_OUTPUT_PATH, machineCode.ToArray());
+                sw.Stop();
                 Console.WriteLine($"Successfully compiled binary output.");
+                Console.WriteLine($"Diagnostics : {sw.Elapsed}");
             }
             catch (Exception ex)
             {
