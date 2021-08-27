@@ -4,6 +4,7 @@ using System.IO;
 using System.Text.RegularExpressions;
 using System.Linq;
 using System.Threading;
+using System.Diagnostics;
 
 namespace VirtualMachine
 {
@@ -11,7 +12,8 @@ namespace VirtualMachine
     {
         public const string LABEL_NAME = "MUSHROOM";
         public const string POINTER_PREFIX = "@SP";
-        public const int SLEEPTIMER_MS = 50;
+        public const int SLEEPTIMER_MS = 0;
+        public const int MAPPED_TEMP_COMPILER = 5;
         public const int MAPPED_TEMPORARY_FREE = 13;
         public const int MAPPED_STATIC = 16;
 
@@ -19,18 +21,80 @@ namespace VirtualMachine
 
         static void Main(string[] args)
         {
-            Console.WriteLine("Loading some VM Data..");
-            string path = @"A:\Nand2Tetris\nand2tetris\projects\07\MemoryAccess\BasicTest\BasicTest.vm";
-            string outputPath = @"C:\Users\Tobias Rosenvinge\Documents\GitHub\repos\nand-2-tetris\tests\p007.tests\";
+            var directoryPath = @"A:\Nand2Tetris\nand2tetris\projects\07\";
+            var outputDirectoryPath = @"C:\Users\Tobias Rosenvinge\Documents\GitHub\repos\nand-2-tetris\tests\p007.tests\";
+            var assemblyData = new Dictionary<string, List<string>>();
+            var benchmarks = new Dictionary<string, TimeSpan>();
+            var sw = new Stopwatch();
 
-            var vmFile = TruncateLoadedFile(File.ReadAllLines(path));
+            Console.WriteLine("Loading files from directory...");
+            var directoryFiles = Directory.GetFiles(directoryPath, "*.vm", SearchOption.AllDirectories);
 
-            Console.WriteLine("Loaded VM Data.");
+            if (!directoryFiles.Any())
+            {
+                Console.WriteLine("No files found in root path.");
+                Environment.Exit(0);
+            }
 
-            List<string> assemblyCode = new();
+            Console.WriteLine("Directory files loaded. Transalting VM code . . .");
 
-            Console.WriteLine("Generating Assembly Code.");
-            foreach (string vmCommand in vmFile)
+            foreach (var filePath in directoryFiles)
+            {
+                var fileName = Path.GetFileName(filePath);
+                sw.Start();
+
+                Console.WriteLine($"Loading {fileName} into memory..");
+                var vmCode = TruncateLoadedFile(File.ReadAllLines(filePath));
+
+                Console.WriteLine($"Generating assembly code from => {fileName}");
+                var generatedAsmCode = GenerateAsmCode(vmCode);
+
+                sw.Stop();
+                benchmarks.Add(fileName, sw.Elapsed);
+                sw.Reset();
+                assemblyData.Add(fileName, generatedAsmCode);
+            }
+
+            var anyAssemblyData = assemblyData.Any();
+
+            if (!anyAssemblyData)
+            {
+                Console.WriteLine("No VM code was translated into ASM code.");
+                Environment.Exit(0);
+            }
+
+            Console.WriteLine($"Generating output sources in => {outputDirectoryPath}");
+            foreach (var data in assemblyData)
+            {
+                var fileName = $"{data.Key}.test.asm";
+                //File.WriteAllLines($"{outputPath}basictest.test.asm", assemblyCode);
+                Console.WriteLine($"Writing ASM code to => {fileName}");
+
+                File.WriteAllLines($"{outputDirectoryPath}{fileName}", data.Value);
+            }
+
+            if (benchmarks.Any())
+            {
+                Console.WriteLine($"Generating benchmark source in => {outputDirectoryPath}");
+
+                using var file = new StreamWriter(outputDirectoryPath + "benchmarks.txt");
+
+                foreach (var benchmark in benchmarks)
+                {
+                    file.WriteLine($"{benchmark.Key,-20} => {benchmark.Value}");
+                }
+            }
+
+            Console.WriteLine("Exiting translator in 5 seconds . . .");
+            Thread.Sleep(5000);
+            Environment.Exit(0);
+        }
+
+        private static List<string> GenerateAsmCode(List<string> vmCode)
+        {
+            List<string> generatedAsmCode = new();
+
+            foreach (var vmCommand in vmCode)
             {
                 var vmCommandPrefix = SplitVMCommand(vmCommand)[0];
 
@@ -39,55 +103,42 @@ namespace VirtualMachine
                     switch (vmCommandPrefix)
                     {
                         case "push":
-                            assemblyCode.AddRange(PushCommand(vmCommand));
+                            generatedAsmCode.AddRange(PushCommand(vmCommand));
                             continue;
                         case "pop":
-                            assemblyCode.AddRange(PopCommand(vmCommand));
+                            generatedAsmCode.AddRange(PopCommand(vmCommand));
                             continue;
                         case "add":
-                            assemblyCode.AddRange(AddCommand());
+                            generatedAsmCode.AddRange(AddCommand());
                             continue;
                         case "sub":
-                            assemblyCode.AddRange(SubCommand());
+                            generatedAsmCode.AddRange(SubCommand());
                             continue;
                         case "neg":
-                            assemblyCode.AddRange(NegCommand());
+                            generatedAsmCode.AddRange(NegCommand());
                             continue;
                         case "and":
-                            assemblyCode.AddRange(AndCommand());
+                            generatedAsmCode.AddRange(AndCommand());
                             continue;
                         case "or":
-                            assemblyCode.AddRange(OrCommand());
+                            generatedAsmCode.AddRange(OrCommand());
                             continue;
                         case "not":
-                            assemblyCode.AddRange(NotCommand());
+                            generatedAsmCode.AddRange(NotCommand());
                             continue;
                         case "eq":
                         case "lt":
                         case "gt":
-                            assemblyCode.AddRange(JmpCommand(vmCommandPrefix));
+                            generatedAsmCode.AddRange(JmpCommand(vmCommandPrefix));
                             continue;
                         default:
                             Console.WriteLine("Command not Found!");
                             break;
                     }
                 }
-
-                //var containsPrefix = ContainsCommandPrefix(vmCommand, "push");
-
-                //if (containsPrefix)
-                //{
-                //    var assemblyData = PushCommand(vmCommand);
-
-                //    assemblyCode.AddRange(assemblyData);
-
-                //    continue;
-                //}
             }
 
-            Console.WriteLine($"Writing Output to {outputPath}");
-            File.WriteAllLines($"{outputPath}basictest.test.asm", assemblyCode);
-            Console.WriteLine("Done.");
+            return generatedAsmCode;
         }
 
         /// <summary>
@@ -117,8 +168,19 @@ namespace VirtualMachine
                 case "argument":
                 case "this":
                 case "that":
-                    data.AddRange(new string[] { $"@{commands[1]}", "D=M", $"@{commands[2]}", "A=D+A", "D=M" });
+                case "pointer":
+                    var mappedCommand = MapCommandArgument(commands[1], commands[2]);
+
+                    if (string.IsNullOrEmpty(mappedCommand))
+                    {
+                        data.AddRange(new string[] { "Coudln't Handle Command Argument =>", vmCommand });
+                        break;
+                    }
+
+                    data.AddRange(new string[] { mappedCommand, "D=M", $"@{commands[2]}", "A=D+A", "D=M" });
                     break;
+                case "temp":
+                    return TempCommand(commands[0], commands[2]);
                 default:
                     /* Throw an exception or something. */
                     data.AddRange(new string[] { "Couldn't Handle Command =>", vmCommand });
@@ -147,8 +209,19 @@ namespace VirtualMachine
                 case "argument":
                 case "this":
                 case "that":
-                    data.AddRange(new string[] { $"@{commands[1]}", "D=A", $"@{commands[2]}", "D=D+A", $"R{MAPPED_TEMPORARY_FREE}", "M=D" });
+                case "pointer":
+                    var mappedCommand = MapCommandArgument(commands[1], commands[2]);
+
+                    if (string.IsNullOrEmpty(mappedCommand))
+                    {
+                        data.AddRange(new string[] { "Coudln't Handle Command Argument =>", vmCommand });
+                        break;
+                    }
+
+                    data.AddRange(new string[] { mappedCommand, "D=M", $"@{commands[2]}", "D=D+A", $"@R{MAPPED_TEMPORARY_FREE}", "M=D" });
                     break;
+                case "temp":
+                    return TempCommand(commands[0] ,commands[2]);
                 default:
                     break;
             }
@@ -263,6 +336,37 @@ namespace VirtualMachine
             //data.AddRange(new string[] { $"@{LABEL_NAME}_FALSE{LABEL_START_INDEX}", "D;JNE" });
         }
 
+        private static List<string> TempCommand(string type, string index)
+        {
+            int temp = int.Parse(index) + MAPPED_TEMP_COMPILER;
+            var temporaryData = new List<string> { $"@R{MAPPED_TEMP_COMPILER}", "D=M", $"@R{temp}" };
+            switch (type)
+            {
+                case "pop":
+                    temporaryData.Add("D=D+A");
+                    temporaryData.Add($"@R{MAPPED_TEMPORARY_FREE}");
+                    temporaryData.Add($"M=D");
+                    temporaryData.AddRange(TranslateStackPointerCounterCommand(false, "AM", "D=M"));
+                    temporaryData.AddRange(TranslateMemoryUpdateCommand($"@R{MAPPED_TEMPORARY_FREE}"));
+                    //temporaryData.Add($"@R{MAPPED_TEMPORARY_FREE}");
+                    //temporaryData.Add("M=D");
+                    //temporaryData.AddRange(TranslateStackPointerCounterCommand(false, "AM", "D=M", $"@R{MAPPED_TEMPORARY_FREE}", "A=M", "M=D"));
+                    break;
+                case "push":
+                    temporaryData.Add("A=D+A");
+                    temporaryData.Add("D=M");
+                    temporaryData.AddRange(TranslateMemoryUpdateCommand());
+                    //temporaryData.AddRange(TranslateStackPointerCounterCommand(false, "A", "M=D"));
+                    temporaryData.AddRange(TranslateStackPointerCounterCommand());
+                    //temporaryData.Add("D=M");
+                    //temporaryData.AddRange(TranslateMemoryUpdateCommand());
+                    //temporaryData.AddRange(TranslateStackPointerCounterCommand());
+                    break;
+            }
+            
+            return temporaryData;
+        }
+
         /// <summary>
         /// Updates a set memory sector. Default is @SP.
         /// </summary>
@@ -352,6 +456,23 @@ namespace VirtualMachine
         private static string[] SplitVMCommand(string vmCommand)
         {
             return vmCommand.Split(" ");
+        }
+
+        private static string MapCommandArgument(string arg, string offset)
+        {
+            if (arg.Equals("pointer"))
+            {
+                return offset.Equals("0") ? "@THIS" : "@THAT";
+            }
+
+            return arg switch
+            {
+                "local" => "@LCL",
+                "argument" => "@ARG",
+                "this" => "@THIS",
+                "that" => "@THAT",
+                _ => "",
+            };
         }
     }
 }

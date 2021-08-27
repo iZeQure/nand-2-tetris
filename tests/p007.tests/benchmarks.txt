@@ -1,0 +1,5 @@
+BasicTest.vm         => 00:00:00.0490558
+PointerTest.vm       => 00:00:00.0197856
+StaticTest.vm        => 00:00:00.0298455
+SimpleAdd.vm         => 00:00:00.0037694
+StackTest.vm         => 00:00:00.0462769
