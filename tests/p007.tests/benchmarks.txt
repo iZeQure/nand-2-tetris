@@ -1,5 +1,6 @@
-BasicTest.vm         => 00:00:00.0490558
-PointerTest.vm       => 00:00:00.0197856
-StaticTest.vm        => 00:00:00.0298455
-SimpleAdd.vm         => 00:00:00.0037694
-StackTest.vm         => 00:00:00.0462769
+Name                 Time                 Size  Location            
+BasicTest.vm         00:00:00.0486200     1Kb   C:\Users\Tobias Rosenvinge\Documents\GitHub\repos\nand-2-tetris\tests\p007.tests\BasicTest.vm.test.asm
+PointerTest.vm       00:00:00.0159522     686B  C:\Users\Tobias Rosenvinge\Documents\GitHub\repos\nand-2-tetris\tests\p007.tests\PointerTest.vm.test.asm
+StaticTest.vm        00:00:00.0136168     454B  C:\Users\Tobias Rosenvinge\Documents\GitHub\repos\nand-2-tetris\tests\p007.tests\StaticTest.vm.test.asm
+SimpleAdd.vm         00:00:00.0058348     104B  C:\Users\Tobias Rosenvinge\Documents\GitHub\repos\nand-2-tetris\tests\p007.tests\SimpleAdd.vm.test.asm
+StackTest.vm         00:00:00.0502957     2Kb   C:\Users\Tobias Rosenvinge\Documents\GitHub\repos\nand-2-tetris\tests\p007.tests\StackTest.vm.test.asm

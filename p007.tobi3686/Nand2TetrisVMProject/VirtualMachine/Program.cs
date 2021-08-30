@@ -20,7 +20,7 @@ namespace VirtualMachine
             var directoryPath = @"A:\Nand2Tetris\nand2tetris\projects\07\";
             var outputDirectoryPath = @"C:\Users\Tobias Rosenvinge\Documents\GitHub\repos\nand-2-tetris\tests\p007.tests\";
             var assemblyData = new Dictionary<string, List<string>>();
-            var benchmarks = new Dictionary<string, TimeSpan>();
+            var benchmarks = new Dictionary<string, Benchmark>();
             var sw = new Stopwatch();
 
             Console.WriteLine("Loading files from directory...");
@@ -55,7 +55,7 @@ namespace VirtualMachine
 
                 sw.Stop();
                 // Add benchmark to the dictionary.
-                benchmarks.Add(fileName, sw.Elapsed);
+                benchmarks.Add(fileName, new Benchmark(sw.Elapsed, "", ""));
                 sw.Reset();
 
                 // Add assembly data to dictionary.
@@ -78,11 +78,17 @@ namespace VirtualMachine
             Console.WriteLine($"Generating output sources in => {outputDirectoryPath}");
             foreach (var data in assemblyData)
             {
-                var fileName = $"{data.Key}.test.asm";
+                var fileName = $"{outputDirectoryPath}{data.Key}.test.asm";
                 //File.WriteAllLines($"{outputPath}basictest.test.asm", assemblyCode);
                 Console.WriteLine($"Writing ASM code to => {fileName}");
 
-                File.WriteAllLines($"{outputDirectoryPath}{fileName}", data.Value);
+                File.WriteAllLines(fileName, data.Value);
+
+
+                // Get file info for benchmark.
+                FileInfo info = new(fileName);
+                benchmarks[data.Key].FileSize = ConvertFileSizeToReadableNumbers(info.Length);
+                benchmarks[data.Key].Location = info.FullName;
             }
 
             /* Check for any created benchmark
@@ -94,15 +100,27 @@ namespace VirtualMachine
 
                 using var file = new StreamWriter(outputDirectoryPath + "benchmarks.txt");
 
+                file.WriteLine($"{"Name", -20} {"Time", -20} {"Size", -5} {"Location", -20}");
                 foreach (var benchmark in benchmarks)
                 {
-                    file.WriteLine($"{benchmark.Key,-20} => {benchmark.Value}");
+                    file.WriteLine($"{benchmark.Key, -20} {benchmark.Value.Time, -20} {benchmark.Value.FileSize, -5} {benchmark.Value.Location, -20}");
                 }
             }
 
             Console.WriteLine("Exiting translator in 5 seconds . . .");
             Thread.Sleep(5000);
             Environment.Exit(0);
+        }
+
+        private static string ConvertFileSizeToReadableNumbers(long length)
+        {
+            return length switch
+            {
+                >= 1 << 30 => $"{length >> 30}Gb",
+                >= 1 << 20 => $"{length >> 20}Mb",
+                >= 1 << 10 => $"{length >> 10}Kb",
+                _ => $"{length}B"
+            };
         }
 
         private static List<string> GenerateAsmCode(List<string> vmCode)

@@ -12,7 +12,7 @@ namespace VirtualMachine.Handlers
     {
         private Translator _translator = new();
 
-        private const string LABEL_NAME = "MUSHROOM";        
+        private const string LABEL_NAME = "MUSHROOM";
         private const int MAPPED_TEMP_COMPILER = 5;
         private const int MAPPED_TEMPORARY_FREE = 13;
         private const int MAPPED_STATIC = 16; // Static values starts at index 16.
@@ -26,10 +26,8 @@ namespace VirtualMachine.Handlers
 
             switch (commands[1])
             {
-                case "":
-                    /* Translate a  command. Location is RAM[117]. */
-                    data.AddRange(new string[] { $"@{MAPPED_STATIC + commands[2]}", "D=A" });
-                    break;
+                case "static":
+                    return StaticPushCommand(commands[2]);
                 case "constant":
                     data.AddRange(new string[] { $"@{commands[2]}", "D=A" });
                     break;
@@ -37,7 +35,6 @@ namespace VirtualMachine.Handlers
                 case "argument":
                 case "this":
                 case "that":
-                case "pointer":
                     var mappedCommand = CommandHelper.MapCommandArgument(commands[1], commands[2]);
 
                     if (string.IsNullOrEmpty(mappedCommand))
@@ -48,8 +45,19 @@ namespace VirtualMachine.Handlers
 
                     data.AddRange(new string[] { mappedCommand, "D=M", $"@{commands[2]}", "A=D+A", "D=M" });
                     break;
+                case "pointer":
+                    var pointer = CommandHelper.MapCommandArgument(commands[1], commands[2]);
+
+                    if (string.IsNullOrEmpty(pointer))
+                    {
+                        data.AddRange(new string[] { "Coudln't Handle Command Argument =>", vmCommand });
+                        break;
+                    }
+
+                    data.AddRange(new string[] { pointer, "D=M" });
+                    break;
                 case "temp":
-                    return TempCommand(commands[0], commands[2]);
+                    return TempPushCommand(commands[2]);
                 default:
                     /* Throw an exception or something. */
                     data.AddRange(new string[] { "Couldn't Handle Command =>", vmCommand });
@@ -71,14 +79,12 @@ namespace VirtualMachine.Handlers
 
             switch (commands[1])
             {
-                case "":
-                    data.AddRange(new string[] { $"@{MAPPED_STATIC + commands[2]}", "D=A", $"@R{MAPPED_TEMPORARY_FREE}", "M=D" });
-                    break;
+                case "static":
+                    return StaticPopCommand(commands[2]);
                 case "local":
                 case "argument":
                 case "this":
                 case "that":
-                case "pointer":
                     var mappedCommand = CommandHelper.MapCommandArgument(commands[1], commands[2]);
 
                     if (string.IsNullOrEmpty(mappedCommand))
@@ -89,13 +95,24 @@ namespace VirtualMachine.Handlers
 
                     data.AddRange(new string[] { mappedCommand, "D=M", $"@{commands[2]}", "D=D+A", $"@R{MAPPED_TEMPORARY_FREE}", "M=D" });
                     break;
+                case "pointer":
+                    var pointer = CommandHelper.MapCommandArgument(commands[1], commands[2]);
+
+                    if (string.IsNullOrEmpty(pointer))
+                    {
+                        data.AddRange(new string[] { "Coudln't Handle Command Argument =>", vmCommand });
+                        break;
+                    }
+
+                    data.AddRange(new string[] { pointer, "D=A", $"@R{MAPPED_TEMPORARY_FREE}", "M=D" });
+                    break;
                 case "temp":
-                    return TempCommand(commands[0], commands[2]);
+                    return TempPopCommand(commands[2]);
                 default:
                     break;
             }
 
-            data.AddRange(_translator.TranslateStackPointerCommand(false, "AM", "D=M"));
+            data.AddRange(_translator.TranslateStackPointerCommand(false, "AM", "", "D=M"));
             //data.AddRange(new string[] { "@R13", "A=M", "M=D" });
             data.AddRange(_translator.TranslateMemoryUpdateCommand("@R13"));
 
@@ -112,7 +129,7 @@ namespace VirtualMachine.Handlers
              * @SP
              * AM=M-1
              * D=M
-             * A=A+-1
+             * A=A-1
              * M=M+D
              */
 
@@ -122,135 +139,299 @@ namespace VirtualMachine.Handlers
                 increment: false,
                 argLeftOfEqualSign: "AM",
                 argRightOfEqualSign: "M",
-                "D=M");
-
-            var getSecondValueInMemory = _translator.TranslateStackPointerCommand(
-                increment: false,
-                argLeftOfEqualSign: "A",
-                argRightOfEqualSign: "A");
+                "D=M", "A=A-1");
 
             var addValues = "M=M+D";
 
             result.AddRange(getFirstValueInMemory);
-            result.AddRange(getSecondValueInMemory);
             result.Add(addValues);
 
             return result;
         }
 
+        /// <summary>
+        /// Substracts two values from one another.
+        /// </summary>
+        /// <returns>A <see cref="List{T}"/> of instructions in assembly format.</returns>
         public List<string> SubCommand()
         {
-            return _translator.TranslateStackPointerCommand(false, "AM", "D=M", _translator.TranslateStackPointerPositionCommand(), "M=M-D");
+            /* Example Sub:
+             * @SP
+             * AM=M-1
+             * D=M
+             * A=A-1
+             * M=M-D
+             */
+
+            var subtractCommand = _translator.TranslateStackPointerCommand(
+                increment: false,
+                argLeftOfEqualSign: "AM",
+                argRightOfEqualSign: "M",
+                "D=M", "A=A-1", "M=M-D");
+
+            return subtractCommand;
         }
 
+        /// <summary>
+        /// Negates the most resent value.
+        /// </summary>
+        /// <returns>A <see cref="List{T}"/> of instructions in assembly format.</returns>
         public List<string> NegCommand()
         {
-            var data = new List<string> { "D=0" };
-            data.AddRange(_translator.TranslateStackPointerCommand(false, "A", "M=M-D"));
-            return data;
+            /* Example Sub:
+             * D=0
+             * @SP
+             * A=M-1
+             * M=D-M
+             */
+
+            var result = new List<string>();
+
+            var setDataReg = "D=0";
+            var negateFirstValue = _translator.TranslateStackPointerCommand(
+                increment: false,
+                argLeftOfEqualSign: "A",
+                argRightOfEqualSign: "M",
+                extraCommands: "M=D-M");
+
+            result.Add(setDataReg);
+            result.AddRange(negateFirstValue);
+
+            return result;
         }
 
+        /// <summary>
+        /// Produces the conjunction of two values.
+        /// </summary>
+        /// <returns>A <see cref="List{T}"/> of instructions in assembly format.</returns>
         public List<string> AndCommand()
         {
-            return _translator.TranslateStackPointerCommand(false, "AM", "D=M", _translator.TranslateStackPointerPositionCommand(), "M=M&D");
+            /* Example:
+             * @SP
+             * AM=M-1
+             * D=M
+             * A=A-1
+             * M=M&D
+             */
+
+            var conjunctionResult = _translator.TranslateStackPointerCommand(
+                increment: false,
+                argLeftOfEqualSign: "AM",
+                argRightOfEqualSign: "M",
+                "D=M", "A=A-1", "M=M&D");
+
+            return conjunctionResult;
         }
 
+        /// <summary>
+        /// Produces the union of two values.
+        /// </summary>
+        /// <returns>A <see cref="List{T}"/> of instructions in assembly format.</returns>
         public List<string> OrCommand()
         {
-            return _translator.TranslateStackPointerCommand(false, "AM", "D=M", _translator.TranslateStackPointerPositionCommand(), "M=M|D");
+            /* Example:
+             *  @SP
+             *  AM=M-1
+             *  D=M
+             *  A=A-1
+             *  M=M|D
+             */
+
+            var unionResult = _translator.TranslateStackPointerCommand(
+                increment: false,
+                argLeftOfEqualSign: "AM",
+                argRightOfEqualSign: "M",
+                "D=M", "A=A-1", "M=M|D");
+
+            return unionResult;
         }
 
+        /// <summary>
+        /// Produces the exact opposite of everything about it.
+        /// </summary>
+        /// <returns>A <see cref="List{T}"/> of instructions in assembly format.</returns>
         public List<string> NotCommand()
         {
-            return _translator.TranslateStackPointerCommand(false, "A", "M=!M");
+            /* Example: 
+             * @SP
+             * A=M-1
+             * M=!M
+             */
+
+            var exactOppositeResult = _translator.TranslateStackPointerCommand(
+                increment: false,
+                argLeftOfEqualSign: "A",
+                argRightOfEqualSign: "M",
+                "M=!M");
+
+            return exactOppositeResult;
         }
 
+        /// <summary>
+        /// Produces the jump condition dependant on input.
+        /// </summary>
+        /// <param name="jmpCondition">Describes the jump condition.</param>
+        /// <returns>A <see cref="List{T}"/> of instructions in assembly format.</returns>
         public List<string> JmpCommand(string jmpCondition)
         {
-            var data = new List<string>();
+            var jumpResult = new List<string>();
 
-            string jumper = "";
+            string jumpCondition = "";
 
             switch (jmpCondition)
             {
                 case "eq":
-                    jumper = "D;JNE";
+                    jumpCondition = "D;JNE";
                     break;
 
                 case "lt":
-                    jumper = "D;JGE";
+                    jumpCondition = "D;JGT";
                     break;
 
                 case "gt":
-                    jumper = "D;JLE";
+                    jumpCondition = "D;JLT";
                     break;
                 default:
                     break;
             }
 
-            data.AddRange(
-                /* Get to Stack Pointer Location. Count the result. */
-                _translator.TranslateStackPointerCommand(
-                    false,
-                    "AM",
-                    "D=M", _translator.TranslateStackPointerPositionCommand(), "D=M-D"));
+            string falseLabel = $"{LABEL_NAME}_FALSE{_labelStartIndex}";
+            string continueLabel = $"{LABEL_NAME}_CONTINUE{_labelStartIndex}";
 
-            /* Add Failure Reference Label. */
-            data.Add($"@{LABEL_NAME}_FALSE{_labelStartIndex}");
-            /* Add Jump Condition. */
-            data.Add(jumper);
+            var evaluateFalseCondition = _translator.TranslateStackPointerCommand(
+                increment: false,
+                argLeftOfEqualSign: "AM",
+                argRightOfEqualSign: "M",
+                "D=M", "A=A-1", "D=M-D", $"@{falseLabel}", jumpCondition);
 
-            /* Update the Stack Pointer. */
-            data.AddRange(_translator.TranslateStackPointerCommand(false, "A", "M=-1"));
+            var evaluateContinueCondition = _translator.TranslateStackPointerCommand(
+                increment: false,
+                argLeftOfEqualSign: "A",
+                argRightOfEqualSign: "M",
+                "M=-1", $"@{continueLabel}", "0;JMP", $"({falseLabel})");
 
-            /* Add Continue Reference Label. */
-            data.Add($"@{LABEL_NAME}_CONTINUE{_labelStartIndex}");
-            /* Add Jump Condition. */
-            data.Add("0;JMP");
+            var moveNext = _translator.TranslateStackPointerCommand(
+                increment: false,
+                argLeftOfEqualSign: "A",
+                argRightOfEqualSign: "M",
+                "M=0", $"({continueLabel})");
 
-            /* Add False Label. */
-            data.Add($"({LABEL_NAME}_FALSE{_labelStartIndex})");
+            jumpResult.AddRange(evaluateFalseCondition);
+            jumpResult.AddRange(evaluateContinueCondition);
+            jumpResult.AddRange(moveNext);
 
-            /* Update Stack Pointer Reference */
-            data.AddRange(_translator.TranslateStackPointerCommand(false, "A", "M=0"));
-
-            /* Add Continue Label. */
-            data.Add($"({LABEL_NAME}_CONTINUE{_labelStartIndex})");
-
-            _labelStartIndex++;
-            return data;
-            //data.AddRange(new string[] { $"@{LABEL_NAME}_FALSE{LABEL_START_INDEX}", "D;JNE" });
+            return jumpResult;
         }
 
-        public List<string> TempCommand(string type, string index)
+        public List<string> TempPushCommand(string index)
         {
-            int temp = int.Parse(index) + MAPPED_TEMP_COMPILER;
-            var temporaryData = new List<string> { $"@R{MAPPED_TEMP_COMPILER}", "D=M", $"@R{temp}" };
-            switch (type)
-            {
-                case "pop":
-                    temporaryData.Add("D=D+A");
-                    temporaryData.Add($"@R{MAPPED_TEMPORARY_FREE}");
-                    temporaryData.Add($"M=D");
-                    temporaryData.AddRange(_translator.TranslateStackPointerCommand(false, "AM", "D=M"));
-                    temporaryData.AddRange(_translator.TranslateMemoryUpdateCommand($"@R{MAPPED_TEMPORARY_FREE}"));
-                    //temporaryData.Add($"@R{MAPPED_TEMPORARY_FREE}");
-                    //temporaryData.Add("M=D");
-                    //temporaryData.AddRange(TranslateStackPointerCounterCommand(false, "AM", "D=M", $"@R{MAPPED_TEMPORARY_FREE}", "A=M", "M=D"));
-                    break;
-                case "push":
-                    temporaryData.Add("A=D+A");
-                    temporaryData.Add("D=M");
-                    temporaryData.AddRange(_translator.TranslateMemoryUpdateCommand());
-                    //temporaryData.AddRange(TranslateStackPointerCounterCommand(false, "A", "M=D"));
-                    temporaryData.AddRange(_translator.TranslateStackPointerCommand());
-                    //temporaryData.Add("D=M");
-                    //temporaryData.AddRange(TranslateMemoryUpdateCommand());
-                    //temporaryData.AddRange(TranslateStackPointerCounterCommand());
-                    break;
-            }
+            var tempResult = new List<string>();
 
-            return temporaryData;
+            var mapTempLocation = new string[] {
+                $"@R{MAPPED_TEMP_COMPILER}",
+                "D=M",
+                $"@R{GetIndex(index, MAPPED_TEMP_COMPILER)}",
+                "A=D+A",
+                "D=M"
+            };
+
+            var updateMemory = _translator.TranslateMemoryUpdateCommand();
+            var updateStackPointer = _translator.TranslateStackPointerCommand();
+
+            tempResult.AddRange(mapTempLocation);
+            tempResult.AddRange(updateMemory);
+            tempResult.AddRange(updateStackPointer);
+
+            return tempResult;
+        }
+
+        public List<string> TempPopCommand(string index)
+        {
+            var tempResult = new List<string>();
+
+            var mapTempLocation = new string[] {
+                $"@R{MAPPED_TEMP_COMPILER}",
+                "D=M",
+                $"@R{GetIndex(index, MAPPED_TEMP_COMPILER)}",
+                "D=D+A",
+                $"@R{MAPPED_TEMPORARY_FREE}",
+                "M=D"
+            };
+
+            var moveNext = _translator.TranslateStackPointerCommand(
+                increment: false,
+                argLeftOfEqualSign: "AM",
+                argRightOfEqualSign: "M",
+                "D=M");
+
+            var updateTempAddress = _translator.TranslateMemoryUpdateCommand($"@R{MAPPED_TEMPORARY_FREE}");
+
+            tempResult.AddRange(mapTempLocation);
+            tempResult.AddRange(moveNext);
+            tempResult.AddRange(updateTempAddress);
+
+            return tempResult;
+        }
+
+        public List<string> StaticPopCommand(string index)
+        {
+            var staticResult = new List<string>();
+
+            var mapStaticAddress = new string[] {
+                $"@{GetIndex(index, MAPPED_STATIC)}", "D=A", $"@R{MAPPED_TEMPORARY_FREE}", "M=D"
+            };
+
+            var moveNext = _translator.TranslateStackPointerCommand(
+                increment: false,
+                argLeftOfEqualSign: "AM",
+                argRightOfEqualSign: "M",
+                "D=M");
+
+            var updateMemory = _translator.TranslateMemoryUpdateCommand($"@R{MAPPED_TEMPORARY_FREE}");
+
+            staticResult.AddRange(mapStaticAddress);
+            staticResult.AddRange(moveNext);
+            staticResult.AddRange(updateMemory);
+
+            return staticResult;
+        }
+
+        public List<string> StaticPushCommand(string index)
+        {
+            var staticResult = new List<string>();
+
+            var mapStaticAddress = new string[] {
+                $"@{GetIndex(index, MAPPED_STATIC)}", "D=M"
+            };
+
+            var updateMemory = _translator.TranslateMemoryUpdateCommand();
+            var moveNext = _translator.TranslateStackPointerCommand();
+
+            staticResult.AddRange(mapStaticAddress);
+            staticResult.AddRange(moveNext);
+            staticResult.AddRange(updateMemory);
+
+            return staticResult;
+        }
+
+        /// <summary>
+        /// Returns the index of the correct address.
+        /// </summary>
+        /// <param name="index"></param>
+        /// <returns>An integer representing the address location.</returns>
+        private int GetIndex(string index, int valueToMapWith)
+        {
+            return ParseIndexToInt32(index) + valueToMapWith;
+        }
+
+        /// <summary>
+        /// Attempts to parse value to <see cref="int"/>.
+        /// </summary>
+        /// <param name="value">A value representing an integer as a string.</param>
+        /// <returns>A parsed string to an integer otherwise 0.</returns>
+        private int ParseIndexToInt32(string value)
+        {
+            return int.TryParse(value, out int result) ? result : 0;
         }
     }
 }
