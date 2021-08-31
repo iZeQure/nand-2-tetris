@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace VirtualMachine.Core
+namespace VirtualMachine.Helpers
 {
     public class CommandHelper
     {
@@ -33,6 +33,20 @@ namespace VirtualMachine.Core
                 "that" => "@THAT",
                 _ => "",
             };
+        }
+
+        /// <summary>
+        /// Maps the index for the current memory position.
+        /// </summary>
+        /// <param name="index">The index to indent with.</param>
+        /// <param name="valueToMapWith">Start position of the index in memory.</param>
+        /// <returns>An integer representing the index position for the giving arguments.</returns>
+        public static int MapIndex(string index, int valueToMapWith)
+        {
+            int i = int.TryParse(index, out int result) ? result : 0;
+            i += valueToMapWith;
+
+            return i;
         }
     }
 }

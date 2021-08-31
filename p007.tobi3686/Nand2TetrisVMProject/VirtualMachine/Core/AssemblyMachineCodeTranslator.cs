@@ -4,10 +4,12 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using VirtualMachine.UI;
+using VirtualMachine.Enums;
 
 namespace VirtualMachine.Core
 {
-    public class Translator
+    public class AssemblyMachineCodeTranslator
     {
         private const string POINTER_PREFIX = "@SP";
         private const int SLEEPTIMER_MS = 0;
@@ -24,7 +26,7 @@ namespace VirtualMachine.Core
         /// <returns>A <see cref="List{T}"/> of instructions in assembly format.</returns>
         public List<string> TranslateMemoryUpdateCommand(string sector = "")
         {
-            Console.WriteLine($"Updating Stack Pointer Memory");
+            ConsoleUIManager.Beautify(Color.Turquoise, "Updating Stack Pointer Memory!");
 
             Thread.Sleep(SLEEPTIMER_MS);
 
@@ -52,7 +54,7 @@ namespace VirtualMachine.Core
         /// <returns>A <see cref="List{T}"/> of instructions in assembly format.</returns>
         public List<string> TranslateStackPointerCommand(bool increment = true, string argLeftOfEqualSign = "", string argRightOfEqualSign = "", params string[] extraCommands)
         {
-            Console.WriteLine($"Moving Stack Pointer <{(increment ? "Down ↓" : "Up ↑")}>");
+            ConsoleUIManager.Beautify(increment ? Color.Green : Color.Red, $"Moving Stack Pointer <{(increment ? "Down ↓" : "Up ↑")}>");
             Thread.Sleep(SLEEPTIMER_MS);
 
             string leftCommand = string.IsNullOrEmpty(argLeftOfEqualSign) ? "M" : argLeftOfEqualSign;
@@ -67,26 +69,5 @@ namespace VirtualMachine.Core
 
             return data;
         }
-
-        /// <summary>
-        /// Translates the Stack Pointer up or down.
-        /// </summary>
-        /// <remarks>
-        /// Example:
-        /// <br>A=A+1</br>
-        /// <br></br>
-        /// </remarks>
-        /// <param name="increment">Whether the stack pointer has to increment or decrement, default false.</param>
-        /// <param name="specialRegister">An argument to specify what should be to the right of the equal sign.</param>
-        /// <returns>A <see cref="string"/> containing the instruction in assembly format.</returns>
-        //public string TranslateStackPointerPositionCommand(bool increment = false, string specialRegister = "")
-        //{
-        //    Console.WriteLine($"Moving Stack Pointer <{(increment ? "Down ↓" : "Up ↑")}>");
-        //    Thread.Sleep(SLEEPTIMER_MS);
-
-        //    string specialCommand = string.IsNullOrEmpty(specialRegister) ? "A" : specialRegister;
-
-        //    return increment ? $"A={specialCommand}+1" : $"A={specialCommand}-1";
-        //}
     }
 }

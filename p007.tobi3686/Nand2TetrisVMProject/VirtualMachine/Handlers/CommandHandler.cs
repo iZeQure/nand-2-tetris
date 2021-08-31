@@ -5,18 +5,19 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using VirtualMachine.Core;
+using VirtualMachine.Helpers;
 
 namespace VirtualMachine.Handlers
 {
     public class CommandHandler
     {
-        private Translator _translator = new();
-
-        private const string LABEL_NAME = "MUSHROOM";
-        private const int MAPPED_TEMP_COMPILER = 5;
-        private const int MAPPED_TEMPORARY_FREE = 13;
-        private const int MAPPED_STATIC = 16; // Static values starts at index 16.
+        private readonly AssemblyMachineCodeTranslator _translator;
         private int _labelStartIndex = 33; // Just a random number, could've been zero.
+
+        public CommandHandler(AssemblyMachineCodeTranslator translator)
+        {
+            _translator = translator;
+        }
 
         public List<string> PushCommand(string vmCommand)
         {
@@ -93,7 +94,7 @@ namespace VirtualMachine.Handlers
                         break;
                     }
 
-                    data.AddRange(new string[] { mappedCommand, "D=M", $"@{commands[2]}", "D=D+A", $"@R{MAPPED_TEMPORARY_FREE}", "M=D" });
+                    data.AddRange(new string[] { mappedCommand, "D=M", $"@{commands[2]}", "D=D+A", $"@R{ConstantsHelper.MAPPED_TEMPORARY_FREE}", "M=D" });
                     break;
                 case "pointer":
                     var pointer = CommandHelper.MapCommandArgument(commands[1], commands[2]);
@@ -104,7 +105,7 @@ namespace VirtualMachine.Handlers
                         break;
                     }
 
-                    data.AddRange(new string[] { pointer, "D=A", $"@R{MAPPED_TEMPORARY_FREE}", "M=D" });
+                    data.AddRange(new string[] { pointer, "D=A", $"@R{ConstantsHelper.MAPPED_TEMPORARY_FREE}", "M=D" });
                     break;
                 case "temp":
                     return TempPopCommand(commands[2]);
@@ -285,18 +286,30 @@ namespace VirtualMachine.Handlers
                     break;
 
                 case "lt":
-                    jumpCondition = "D;JGT";
+                    jumpCondition = "D;JGE";
                     break;
 
                 case "gt":
-                    jumpCondition = "D;JLT";
+                    jumpCondition = "D;JLE";
                     break;
                 default:
                     break;
             }
 
-            string falseLabel = $"{LABEL_NAME}_FALSE{_labelStartIndex}";
-            string continueLabel = $"{LABEL_NAME}_CONTINUE{_labelStartIndex}";
+            
+
+            string falseLabel = $"{ConstantsHelper.LABEL_NAME}_FALSE{_labelStartIndex}";
+            string continueLabel = $"{ConstantsHelper.LABEL_NAME}_CONTINUE{_labelStartIndex}";
+
+            /* Evaluate False Condition output 
+             * @SP
+             * AM=M-1
+             * D=M
+             * A=A-1
+             * D=M-D
+             * @label_false0,
+             * D;JNE
+             */
 
             var evaluateFalseCondition = _translator.TranslateStackPointerCommand(
                 increment: false,
@@ -304,11 +317,27 @@ namespace VirtualMachine.Handlers
                 argRightOfEqualSign: "M",
                 "D=M", "A=A-1", "D=M-D", $"@{falseLabel}", jumpCondition);
 
+            /* Evaluate Continue Condition output 
+             * @SP
+             * A=M-1
+             * M=-1
+             * @label_continue0
+             * 0;JMP
+             * (label_false0)
+             */
+
             var evaluateContinueCondition = _translator.TranslateStackPointerCommand(
                 increment: false,
                 argLeftOfEqualSign: "A",
                 argRightOfEqualSign: "M",
                 "M=-1", $"@{continueLabel}", "0;JMP", $"({falseLabel})");
+
+            /* Move Next Condition output 
+             * @SP
+             * A=M-1
+             * M=0
+             * (label_continue0)
+             */
 
             var moveNext = _translator.TranslateStackPointerCommand(
                 increment: false,
@@ -320,6 +349,9 @@ namespace VirtualMachine.Handlers
             jumpResult.AddRange(evaluateContinueCondition);
             jumpResult.AddRange(moveNext);
 
+            // Count the label index forward +1.
+            _labelStartIndex++;
+
             return jumpResult;
         }
 
@@ -328,9 +360,9 @@ namespace VirtualMachine.Handlers
             var tempResult = new List<string>();
 
             var mapTempLocation = new string[] {
-                $"@R{MAPPED_TEMP_COMPILER}",
+                $"@R{ConstantsHelper.MAPPED_TEMP_COMPILER}",
                 "D=M",
-                $"@R{GetIndex(index, MAPPED_TEMP_COMPILER)}",
+                $"@R{CommandHelper.MapIndex(index, ConstantsHelper.MAPPED_TEMP_COMPILER)}",
                 "A=D+A",
                 "D=M"
             };
@@ -350,11 +382,11 @@ namespace VirtualMachine.Handlers
             var tempResult = new List<string>();
 
             var mapTempLocation = new string[] {
-                $"@R{MAPPED_TEMP_COMPILER}",
+                $"@R{ConstantsHelper.MAPPED_TEMP_COMPILER}",
                 "D=M",
-                $"@R{GetIndex(index, MAPPED_TEMP_COMPILER)}",
+                $"@R{CommandHelper.MapIndex(index, ConstantsHelper.MAPPED_TEMP_COMPILER)}",
                 "D=D+A",
-                $"@R{MAPPED_TEMPORARY_FREE}",
+                $"@R{ConstantsHelper.MAPPED_TEMPORARY_FREE}",
                 "M=D"
             };
 
@@ -364,7 +396,7 @@ namespace VirtualMachine.Handlers
                 argRightOfEqualSign: "M",
                 "D=M");
 
-            var updateTempAddress = _translator.TranslateMemoryUpdateCommand($"@R{MAPPED_TEMPORARY_FREE}");
+            var updateTempAddress = _translator.TranslateMemoryUpdateCommand($"@R{ConstantsHelper.MAPPED_TEMPORARY_FREE}");
 
             tempResult.AddRange(mapTempLocation);
             tempResult.AddRange(moveNext);
@@ -378,7 +410,10 @@ namespace VirtualMachine.Handlers
             var staticResult = new List<string>();
 
             var mapStaticAddress = new string[] {
-                $"@{GetIndex(index, MAPPED_STATIC)}", "D=A", $"@R{MAPPED_TEMPORARY_FREE}", "M=D"
+                $"@{CommandHelper.MapIndex(index, ConstantsHelper.MAPPED_STATIC)}", 
+                "D=A", 
+                $"@R{ConstantsHelper.MAPPED_TEMPORARY_FREE}", 
+                "M=D"
             };
 
             var moveNext = _translator.TranslateStackPointerCommand(
@@ -387,7 +422,7 @@ namespace VirtualMachine.Handlers
                 argRightOfEqualSign: "M",
                 "D=M");
 
-            var updateMemory = _translator.TranslateMemoryUpdateCommand($"@R{MAPPED_TEMPORARY_FREE}");
+            var updateMemory = _translator.TranslateMemoryUpdateCommand($"@R{ConstantsHelper.MAPPED_TEMPORARY_FREE}");
 
             staticResult.AddRange(mapStaticAddress);
             staticResult.AddRange(moveNext);
@@ -398,40 +433,33 @@ namespace VirtualMachine.Handlers
 
         public List<string> StaticPushCommand(string index)
         {
+            /* Example: 
+             * @19
+             * D=M
+             * @SP
+             * A=M
+             * M=D
+             * @SP
+             * M=M+1
+             */
+
             var staticResult = new List<string>();
 
             var mapStaticAddress = new string[] {
-                $"@{GetIndex(index, MAPPED_STATIC)}", "D=M"
+                $"@{CommandHelper.MapIndex(index, ConstantsHelper.MAPPED_STATIC)}", "D=M"
             };
 
             var updateMemory = _translator.TranslateMemoryUpdateCommand();
-            var moveNext = _translator.TranslateStackPointerCommand();
+            var moveNext = _translator.TranslateStackPointerCommand(
+                increment: true,
+                argLeftOfEqualSign: "M",
+                argRightOfEqualSign: "M");
 
             staticResult.AddRange(mapStaticAddress);
-            staticResult.AddRange(moveNext);
             staticResult.AddRange(updateMemory);
+            staticResult.AddRange(moveNext);
 
             return staticResult;
-        }
-
-        /// <summary>
-        /// Returns the index of the correct address.
-        /// </summary>
-        /// <param name="index"></param>
-        /// <returns>An integer representing the address location.</returns>
-        private int GetIndex(string index, int valueToMapWith)
-        {
-            return ParseIndexToInt32(index) + valueToMapWith;
-        }
-
-        /// <summary>
-        /// Attempts to parse value to <see cref="int"/>.
-        /// </summary>
-        /// <param name="value">A value representing an integer as a string.</param>
-        /// <returns>A parsed string to an integer otherwise 0.</returns>
-        private int ParseIndexToInt32(string value)
-        {
-            return int.TryParse(value, out int result) ? result : 0;
         }
     }
 }
